@@ -104,7 +104,6 @@ startExaminations() {
     fi
 
     echo "${students[@]}" > students.txt
-    echo "${students[@]}"
 
     setsid bash -c '
         source ~/Desktop/scripts/student.sh
