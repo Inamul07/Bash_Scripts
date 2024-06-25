@@ -2,29 +2,29 @@
 
 declare -A students
 IFS=","
+scriptPath=~/Desktop/scripts/StudentSystem
+logsPath=$scriptPath/logs
 
 addStudent() {
-    count=${#students[@]}
+    >> $logsPath/students.txt
+    count=$(wc -l < $logsPath/students.txt)
     read -p "Enter Student Name: " name
-    students[$((count + 1))]="$name,0,0,0"
+    id=$(( count + 1))
+    echo "$id,$name,0,0,0" >> $logsPath/students.txt
 }
 
 viewAllStudents() {
     printf "%-10s %-10s\n" Id Name
-    count="${#students[@]}"
-    for (( id=1;id<=$count;id++ )); do
-        IFS=","
-        read -r name mark1 mark2 mark3 <<< ${students[$id]}
+    while read -r id name mark1 mark2 mark3; do
         printf "%-10s %-10s\n" $id $name
-    done
+    done < $logsPath/students.txt
 }
 
 findByName() {
     read -p "Enter Name To Search: " searchName
     found=0
-    for id in ${!students[@]}; do
-        IFS=","
-        read -r name mark1 mark2 mark3 <<< ${students[$id]}
+
+    while read -r id name mark1 mark2 mark3; do
         if [ $name == $searchName ]; then
             echo "Id = $id"
             echo "Name = $name"
@@ -34,43 +34,42 @@ findByName() {
             echo
             found=1
         fi
-    done
+    done < $logsPath/students.txt
+
     if [ $found -eq 0 ]; then
         echo "$searchName Not Found"
     fi
 }
 
 conductExamination() {
-    IFS=" "
-    read -r -a stu_array <<< "$(<students.txt)"
-    count="${#stu_array[@]}"
-    for (( id=0;id<$count;id++ )); do
-        IFS=","
-        read -r name mark1 mark2 mark3 <<< ${stu_array[$id]}
+    declare -A students
+    while read -r id name mark1 mark2 mark3; do
         mark1=$((RANDOM % 101))
         mark2=$((RANDOM % 101))
         mark3=$((RANDOM % 101))
-        stu_array[$id]="$name,$mark1,$mark2,$mark3"
+
+        students[$id]="$id,$name,$mark1,$mark2,$mark3"
+    done < $logsPath/students.txt
+
+    > $logsPath/students.txt
+
+    count=${#students[@]}
+    for (( id=1; id<=$count; id++ )); do
+        echo "${students[$id]}" >> $logsPath/students.txt
     done
-    echo "${stu_array[@]}" > students.txt
     kill -SIGUSR1 $topper_pid 2>/dev/null
 }
 
 evaluateTopper() {
-    IFS=" "
-    read -r -a stu_array <<< "$(<students.txt)"
-    count="${#stu_array[@]}"
     maxMark=0
-    for(( id=0; id<$count; id++ )); do
-        IFS=","
-        read -r name mark1 mark2 mark3 <<< ${stu_array[$id]}
+    while read -r id name mark1 mark2 mark3; do
         total=$(( mark1 + mark2 + mark3 ))
         if [ $total -gt $maxMark ]; then
             maxMark=$total
             topper=$name
         fi
-    done
-    echo "Topper = $topper; Total = $maxMark" >> toppers.txt
+    done < $logsPath/students.txt
+    echo "Topper = $topper; Total = $maxMark" >> $logsPath/toppers.txt
 }
 
 topperEvaluater() {
@@ -82,59 +81,37 @@ topperEvaluater() {
 
 viewResults() {
     printf "%-10s %-10s %-10s %-10s %-10s\n" Id Name Mark1 Mark2 Mark3
-    count="${#students[@]}"
-    for (( id=1;id<=$count;id++ )); do
-        IFS=","
-        read -r name mark1 mark2 mark3 <<< ${students[$id]}
+    while read -r id name mark1 mark2 mark3; do
         printf "%-10s %-10s %-10s %-10s %-10s\n" $id $name $mark1 $mark2 $mark3
-    done
+    done < $logsPath/students.txt
 }
 
 startExaminations() {
-    > toppers.txt
-    if [[ -s pids.txt ]]; then
+    > $logsPath/toppers.txt
+    if [[ -s $logsPath/pids.txt ]]; then
         echo "Examination process is already running"
         return
     fi
 
-    studentCount=${#students[@]}
-    if [ $studentCount -eq 0 ]; then
+    if [ ! -s $logsPath/students.txt ]; then
         echo "No Students Found"
         return
     fi
 
-    echo "${students[@]}" > students.txt
-
-    setsid bash -c '
-        source ~/Desktop/scripts/student.sh
-
-        topperEvaluater &
-        topper_pid=$!
-
-        while true; do
-            conductExamination
-            sleep 5
-        done &
-        exam_pid=$!
-
-        echo "$topper_pid $exam_pid" > pids.txt
-    '
+    setsid bash -c $scriptPath'/examScript.sh'
 }
 
 stopExaminations() {
-    if [[ ! -s pids.txt ]]; then
+    if [[ ! -s $logsPath/pids.txt ]]; then
         echo "No Examination Process is currently running"
         return
     fi
 
-    IFS=" "
-    read -r -a pids <<< "$(<pids.txt)"
-    IFS=","
-    for (( idx=0; idx<2; idx++ )); do
-        kill "${pids[$idx]}"
-        wait "${pids[$idx]}" 2>/dev/null
-    done
-    > pids.txt
+    while read -r process_pid; do
+        kill $process_pid
+        wait $process_pid 2>/dev/null
+    done < $logsPath/pids.txt
+    > $logsPath/pids.txt
 }
 
 runPrompt() {

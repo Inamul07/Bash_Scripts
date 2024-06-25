@@ -1,0 +1,10 @@
+Topper = Stu-1; Total = 210
+Topper = Stu-2; Total = 202
+Topper = Stu-2; Total = 249
+Topper = Stu-1; Total = 186
+Topper = Stu-1; Total = 126
+Topper = Stu-2; Total = 213
+Topper = Stu-1; Total = 220
+Topper = Stu-2; Total = 199
+Topper = Stu-1; Total = 107
+Topper = Stu-2; Total = 191
