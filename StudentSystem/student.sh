@@ -1,8 +1,7 @@
 #!/bin/bash
 
-declare -A students
 IFS=","
-scriptPath=~/Desktop/scripts/StudentSystem
+scriptPath=$PWD
 logsPath=$scriptPath/logs
 
 addStudent() {
