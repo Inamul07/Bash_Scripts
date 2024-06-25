@@ -13,6 +13,7 @@ viewAllStudents() {
     printf "%-10s %-10s\n" Id Name
     count="${#students[@]}"
     for (( id=1;id<=$count;id++ )); do
+        IFS=","
         read -r name mark1 mark2 mark3 <<< ${students[$id]}
         printf "%-10s %-10s\n" $id $name
     done
@@ -22,6 +23,7 @@ findByName() {
     read -p "Enter Name To Search: " searchName
     found=0
     for id in ${!students[@]}; do
+        IFS=","
         read -r name mark1 mark2 mark3 <<< ${students[$id]}
         if [ $name == $searchName ]; then
             echo "Id = $id"
@@ -39,27 +41,29 @@ findByName() {
 }
 
 conductExamination() {
-    count="${#students[@]}"
-    for (( id=1;id<=$count;id++ )); do
-        read -r name mark1 mark2 mark3 <<< ${students[$id]}
+    IFS=" "
+    read -r -a stu_array <<< "$(<students.txt)"
+    count="${#stu_array[@]}"
+    for (( id=0;id<$count;id++ )); do
+        IFS=","
+        read -r name mark1 mark2 mark3 <<< ${stu_array[$id]}
         mark1=$((RANDOM % 101))
         mark2=$((RANDOM % 101))
         mark3=$((RANDOM % 101))
-        students[$id]="$name,$mark1,$mark2,$mark3"
+        stu_array[$id]="$name,$mark1,$mark2,$mark3"
     done
-    echo "${students[@]}" > students.txt
-    kill -SIGUSR1 $topper_sid 2>/dev/null
+    echo "${stu_array[@]}" > students.txt
+    kill -SIGUSR1 $topper_pid 2>/dev/null
 }
 
 evaluateTopper() {
-    studentContent=$(<students.txt)
     IFS=" "
-    read -r -a stu <<< "$studentContent"
-    IFS=","
-    count="${#stu[@]}"
+    read -r -a stu_array <<< "$(<students.txt)"
+    count="${#stu_array[@]}"
     maxMark=0
     for(( id=0; id<$count; id++ )); do
-        read -r name mark1 mark2 mark3 <<< ${stu[$id]}
+        IFS=","
+        read -r name mark1 mark2 mark3 <<< ${stu_array[$id]}
         total=$(( mark1 + mark2 + mark3 ))
         if [ $total -gt $maxMark ]; then
             maxMark=$total
@@ -80,6 +84,7 @@ viewResults() {
     printf "%-10s %-10s %-10s %-10s %-10s\n" Id Name Mark1 Mark2 Mark3
     count="${#students[@]}"
     for (( id=1;id<=$count;id++ )); do
+        IFS=","
         read -r name mark1 mark2 mark3 <<< ${students[$id]}
         printf "%-10s %-10s %-10s %-10s %-10s\n" $id $name $mark1 $mark2 $mark3
     done
@@ -87,8 +92,8 @@ viewResults() {
 
 startExaminations() {
     > toppers.txt
-    if [[ $exam_sid -ne 0 ]]; then
-        echo "Examination process is already running with PID $exam_sid"
+    if [[ -s pids.txt ]]; then
+        echo "Examination process is already running"
         return
     fi
 
@@ -98,30 +103,39 @@ startExaminations() {
         return
     fi
 
-    topperEvaluater &
-    topper_sid=$!
-    
-    while true; do
-        conductExamination
-        sleep 5
-    done &
-    exam_sid=$!
+    echo "${students[@]}" > students.txt
+    echo "${students[@]}"
 
-    echo "Examination process started with PID $exam_sid"
+    setsid bash -c '
+        source ~/Desktop/scripts/student.sh
+
+        topperEvaluater &
+        topper_pid=$!
+
+        while true; do
+            conductExamination
+            sleep 5
+        done &
+        exam_pid=$!
+
+        echo "$topper_pid $exam_pid" > pids.txt
+    '
 }
 
 stopExaminations() {
-    if [[ $exam_sid -eq 0 ]]; then
-        echo "No examination process is currently running"
-    else
-        kill $exam_sid
-        wait $exam_sid 2>/dev/null
-        kill $topper_sid
-        wait $topper_sid 2>/dev/null
-        echo "Examination process with PID $exam_sid has been stopped"
-        exam_sid=0
-        topper_sid=0
+    if [[ ! -s pids.txt ]]; then
+        echo "No Examination Process is currently running"
+        return
     fi
+
+    IFS=" "
+    read -r -a pids <<< "$(<pids.txt)"
+    IFS=","
+    for (( idx=0; idx<2; idx++ )); do
+        kill "${pids[$idx]}"
+        wait "${pids[$idx]}" 2>/dev/null
+    done
+    > pids.txt
 }
 
 runPrompt() {
