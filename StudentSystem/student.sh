@@ -4,19 +4,21 @@ IFS=","
 scriptPath=$PWD
 logsPath=$scriptPath/logs
 
+exam_process=false
+
 addStudent() {
-    >> $logsPath/students.txt
-    count=$(wc -l < $logsPath/students.txt)
+    >>$logsPath/students.txt
+    count=$(wc -l <$logsPath/students.txt)
     read -p "Enter Student Name: " name
-    id=$(( count + 1))
-    echo "$id,$name,0,0,0" >> $logsPath/students.txt
+    id=$((count + 1))
+    echo "$id,$name,0,0,0" >>$logsPath/students.txt
 }
 
 viewAllStudents() {
     printf "%-10s %-10s\n" Id Name
     while read -r id name mark1 mark2 mark3; do
         printf "%-10s %-10s\n" $id $name
-    done < $logsPath/students.txt
+    done <$logsPath/students.txt
 }
 
 findByName() {
@@ -33,7 +35,7 @@ findByName() {
             echo
             found=1
         fi
-    done < $logsPath/students.txt
+    done <$logsPath/students.txt
 
     if [ $found -eq 0 ]; then
         echo "$searchName Not Found"
@@ -41,6 +43,9 @@ findByName() {
 }
 
 conductExamination() {
+
+    echo "Exam Process" >$logsPath/signal.txt
+
     declare -A students
     while read -r id name mark1 mark2 mark3; do
         mark1=$((RANDOM % 101))
@@ -48,27 +53,29 @@ conductExamination() {
         mark3=$((RANDOM % 101))
 
         students[$id]="$id,$name,$mark1,$mark2,$mark3"
-    done < $logsPath/students.txt
+    done <$logsPath/students.txt
 
-    > $logsPath/students.txt
+    >$logsPath/students.txt
 
     count=${#students[@]}
-    for (( id=1; id<=$count; id++ )); do
-        echo "${students[$id]}" >> $logsPath/students.txt
+    for ((id = 1; id <= $count; id++)); do
+        echo "${students[$id]}" >>$logsPath/students.txt
     done
+
     kill -SIGUSR1 $topper_pid 2>/dev/null
+    >$logsPath/signal.txt
 }
 
 evaluateTopper() {
     maxMark=0
     while read -r id name mark1 mark2 mark3; do
-        total=$(( mark1 + mark2 + mark3 ))
+        total=$((mark1 + mark2 + mark3))
         if [ $total -gt $maxMark ]; then
             maxMark=$total
             topper=$name
         fi
-    done < $logsPath/students.txt
-    echo "Topper = $topper; Total = $maxMark" >> $logsPath/toppers.txt
+    done <$logsPath/students.txt
+    echo "Topper = $topper; Total = $maxMark" >>$logsPath/toppers.txt
 }
 
 topperEvaluater() {
@@ -78,15 +85,26 @@ topperEvaluater() {
     done
 }
 
+logToppers() {
+    scp $logsPath/toppers.txt test1@zlabs-auto2:/home/test1/exam_logs/$(date +%d-%m-%Y--%H-%M-%S).txt
+}
+
+# topperLogger() {
+#     trap 'logToppers' SIGUSR1
+#     while true; do
+#         sleep 1
+#     done
+# }
+
 viewResults() {
     printf "%-10s %-10s %-10s %-10s %-10s\n" Id Name Mark1 Mark2 Mark3
     while read -r id name mark1 mark2 mark3; do
         printf "%-10s %-10s %-10s %-10s %-10s\n" $id $name $mark1 $mark2 $mark3
-    done < $logsPath/students.txt
+    done <$logsPath/students.txt
 }
 
 startExaminations() {
-    > $logsPath/toppers.txt
+    >$logsPath/toppers.txt
     if [[ -s $logsPath/pids.txt ]]; then
         echo "Examination process is already running"
         return
@@ -109,8 +127,8 @@ stopExaminations() {
     while read -r process_pid; do
         kill $process_pid
         wait $process_pid 2>/dev/null
-    done < $logsPath/pids.txt
-    > $logsPath/pids.txt
+    done <$logsPath/pids.txt
+    >$logsPath/pids.txt
 }
 
 runPrompt() {
@@ -129,25 +147,25 @@ runPrompt() {
         echo
 
         case $i in
-            1)
+        1)
             addStudent
             ;;
-            2)
+        2)
             viewAllStudents
             ;;
-            3)
+        3)
             findByName
             ;;
-            4)
+        4)
             conductExamination
             ;;
-            5)
+        5)
             viewResults
             ;;
-            6)
+        6)
             startExaminations
             ;;
-            7)
+        7)
             stopExaminations
             ;;
         esac
