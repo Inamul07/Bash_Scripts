@@ -1,81 +1,66 @@
 #!/bin/bash
 
-IFS=","
 scriptPath=$PWD
 logsPath=$scriptPath/logs
 
-exam_process=false
+psql="~/pgsql/bin/psql -p 22400 -d studentdb"
+remote=test1@zlabs-auto3
 
 addStudent() {
-    >>$logsPath/students.txt
-    count=$(wc -l <$logsPath/students.txt)
     read -p "Enter Student Name: " name
-    id=$((count + 1))
-    echo "$id,$name,0,0,0" >>$logsPath/students.txt
+    ssh $remote $psql" -c \"INSERT INTO student (name) VALUES ('$name')\"" &>/dev/null
 }
 
 viewAllStudents() {
     printf "%-10s %-10s\n" Id Name
-    while read -r id name mark1 mark2 mark3; do
+    students=$(ssh $remote $psql" -q -t -c \"COPY (SELECT stu_id, name FROM student) TO STDOUT (DELIMITER '|');\"")
+    echo "$students" | while IFS="|" read -r id name; do
         printf "%-10s %-10s\n" $id $name
-    done <$logsPath/students.txt
+    done
 }
 
 findByName() {
     read -p "Enter Name To Search: " searchName
-    found=0
+    student=$(ssh $remote $psql" -q -t -c \"COPY (SELECT * FROM student WHERE name='$searchName') TO STDOUT (DELIMITER ',');\"")
 
-    while read -r id name mark1 mark2 mark3; do
-        if [ $name == $searchName ]; then
-            echo "Id = $id"
-            echo "Name = $name"
-            echo "Mark1 = $mark1"
-            echo "Mark2 = $mark2"
-            echo "Mark3 = $mark3"
-            echo
-            found=1
-        fi
-    done <$logsPath/students.txt
-
-    if [ $found -eq 0 ]; then
+    if [ -z "$student" ]; then
         echo "$searchName Not Found"
+        return
     fi
+
+    echo $student | while IFS=" " read -r id name mark1 mark2 mark3 total; do
+        echo "Id = $id"
+        echo "Name = $name"
+        echo "Mark1 = $mark1"
+        echo "Mark2 = $mark2"
+        echo "Mark3 = $mark3"
+        echo
+    done
 }
 
 conductExamination() {
+    students=$(ssh $remote $psql" -q -t -c \"COPY (SELECT * FROM student) TO STDOUT (DELIMITER SELECT *'|');\"")
+    echo "$students" >$scriptPath/tmp/students.txt
 
-    echo "Exam Process" >$logsPath/signal.txt
-
-    declare -A students
-    while read -r id name mark1 mark2 mark3; do
+    IFS="|"
+    while read -r id name mark1 mark2 mark3 total; do
         mark1=$((RANDOM % 101))
         mark2=$((RANDOM % 101))
         mark3=$((RANDOM % 101))
 
-        students[$id]="$id,$name,$mark1,$mark2,$mark3"
-    done <$logsPath/students.txt
-
-    >$logsPath/students.txt
-
-    count=${#students[@]}
-    for ((id = 1; id <= $count; id++)); do
-        echo "${students[$id]}" >>$logsPath/students.txt
-    done
+        export id mark1 mark2 mark3 remote psql
+        setsid bash -c 'ssh $remote $psql" -c \"UPDATE student SET mark1=$mark1, mark2=$mark2, mark3=$mark3 WHERE stu_id=$id;\""' &>/dev/null 2>/dev/null
+    done <$scriptPath/tmp/students.txt
 
     kill -SIGUSR1 $topper_pid 2>/dev/null
-    >$logsPath/signal.txt
+    rm $scriptPath/tmp/students.txt
 }
 
 evaluateTopper() {
-    maxMark=0
-    while read -r id name mark1 mark2 mark3; do
-        total=$((mark1 + mark2 + mark3))
-        if [ $total -gt $maxMark ]; then
-            maxMark=$total
-            topper=$name
-        fi
-    done <$logsPath/students.txt
-    echo "Topper = $topper; Total = $maxMark" >>$logsPath/toppers.txt
+    student=$(ssh $remote $psql" -c \"COPY (SELECT name, total FROM student ORDER BY total DESC LIMIT 1) TO STDOUT (DELIMITER ',');\"")
+    IFS=","
+    read -r name total <<<"$student"
+    echo "Topper = $name; Total = $total" >>$logsPath/toppers.txt
 }
 
 topperEvaluater() {
@@ -97,21 +82,17 @@ logToppers() {
 # }
 
 viewResults() {
-    printf "%-10s %-10s %-10s %-10s %-10s\n" Id Name Mark1 Mark2 Mark3
-    while read -r id name mark1 mark2 mark3; do
-        printf "%-10s %-10s %-10s %-10s %-10s\n" $id $name $mark1 $mark2 $mark3
-    done <$logsPath/students.txt
+    students=$(ssh $remote $psql" -q -t -c \"COPY (SELECT * FROM student) TO STDOUT (DELIMITER '|');\"")
+    printf "%-10s %-10s %-10s %-10s %-10s %-10s\n" Id Name Mark1 Mark2 Mark3 Total
+    echo "$students" | while IFS='|' read -r id name mark1 mark2 mark3 total; do
+        printf "%-10s %-10s %-10s %-10s %-10s %-10s\n" $id $name $mark1 $mark2 $mark3 $total
+    done
 }
 
 startExaminations() {
     >$logsPath/toppers.txt
     if [[ -s $logsPath/pids.txt ]]; then
         echo "Examination process is already running"
-        return
-    fi
-
-    if [ ! -s $logsPath/students.txt ]; then
-        echo "No Students Found"
         return
     fi
 
