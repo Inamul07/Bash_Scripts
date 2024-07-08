@@ -39,7 +39,7 @@ findByName() {
 }
 
 conductExamination() {
-    students=$(ssh $remote $psql" -q -t -c \"COPY (SELECT * FROM student) TO STDOUT (DELIMITER SELECT *'|');\"")
+    students=$(ssh $remote $psql" -q -t -c \"COPY (SELECT * FROM student) TO STDOUT (DELIMITER '|');\"")
     echo "$students" >$scriptPath/tmp/students.txt
 
     IFS="|"
