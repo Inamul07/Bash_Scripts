@@ -1,0 +1,11 @@
+zlabs-auto3:22400 - accepting connections
+zlabs-auto3:22400 - accepting connections
+zlabs-auto3:22400 - accepting connections
+zlabs-auto3:22400 - accepting connections
+zlabs-auto3:22400 - accepting connections
+zlabs-auto3:22400 - accepting connections
+zlabs-auto3:22400 - no response
+Thu Jul 11 11:46:15 IST 2024 -- master -- DB returned code 2. Restarting Server. Trial 1
+Thu Jul 11 11:46:20 IST 2024 -- master -- DB returned code 1. Restarting Server. Trial 2
+Thu Jul 11 11:46:25 IST 2024 -- master -- DB returned code 1. Restarting Server. Trial 3
+Thu Jul 11 11:46:25 IST 2024 -- master -- Restart Failed. Promoting Slave As Master
