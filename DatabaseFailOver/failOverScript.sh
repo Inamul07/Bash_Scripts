@@ -84,7 +84,6 @@ startMonitoring() {
     export failRestart=false
     > $LOG_PATH/logs.txt
     > $LOG_PATH/pids.txt
-    rm -f $LOG_PATH/promote.signal
 
     local OPTIND
     while getopts "f" opt; do
@@ -125,3 +124,9 @@ makeAsSlave() {
     MASTER_HOST=$SLAVE_HOST
     SLAVE_HOST=$(hostname)
 }
+
+if [ -f $LOG_PATH/promote.signal ]; then
+    makeAsSlave
+    $PG_PATH/pg_ctl -D $DATA -l $PG_PATH/../logfile start
+    rm $LOG_PATH/promote.signal
+fi
